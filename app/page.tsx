@@ -1,76 +1,62 @@
-"use client";
+// app/page.tsx
+'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Auth from './components/Auth';
+import Button from './components/ui/Button';
+import { createRoom } from '@/lib/api';
 import { supabase } from '@/lib/supabase/client';
-import { User } from '@supabase/supabase-js';
-import { useEffect, useState } from 'react';
 
 export default function HomePage() {
-  // State to hold the user object
-  const [user, setUser] = useState<User | null>(null);
+  const [roomName, setRoomName] = useState('');
+  const router = useRouter();
 
-  // Effect to check for an active session when the page loads
-  useEffect(() => {
-    // Check for an existing active session
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-    };
-    getSession();
-
-    // Listen for auth changes (sign in, sign out, etc.)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    // Cleanup function to remove the listener when the component unmounts
-    return () => subscription.unsubscribe();
-  }, []); // Empty dependency array means this runs once on mount
-
-  // Function to handle signing out
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
+  async function handleCreateRoom() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user?.id;
+      const room = await createRoom({ name: roomName || undefined, created_by: userId });
+      router.push(`/room/${room.id}`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to create room');
+    }
+  }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <h1 className="text-4xl font-bold mb-8">Welcome to Wager</h1>
-      
-      {/* If the user is NOT logged in, show the Auth component */}
-      {!user ? (
-        <div className="text-center">
-          <p className="mb-4">The best app for betting with friends.</p>
-          <Auth />
+    <main className="min-h-screen flex items-center justify-center px-6">
+      <div className="w-full max-w-3xl card-glass card-border rounded-2xl p-10 shadow-lift">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold leading-tight">Wager</h1>
+            <p className="text-subtle mt-1">Friendly, private bets — points only.</p>
+          </div>
+          <div><Auth /></div>
         </div>
-      ) : (
-        /* If the user IS logged in, show a welcome message and their data */
-        <div className="text-center">
-          <p className="mb-2">Hey, you're logged in!</p>
-          <p className="mb-4 text-gray-600">{user.email}</p>
-          
-          {/* This is where you'll eventually show the user's coin balance */}
-          <div className="bg-gray-100 p-4 rounded-lg mb-6">
-            <h2 className="font-semibold">Your Mock Coin Balance</h2>
-            <p className="text-2xl">1,000</p> 
-            {/* We'll make this dynamic later by fetching from the `profiles` table */}
+
+        <div className="grid grid-cols-2 gap-6">
+          <div className="col-span-2 md:col-span-1">
+            <label className="text-sm text-subtle">Optional room name</label>
+            <input value={roomName} onChange={(e) => setRoomName(e.target.value)} className="mt-2 block w-full bg-transparent border border-white/6 rounded-xl p-3 placeholder:text-subtle focus:ring-2 focus:ring-brand-300" placeholder="e.g. Super Bowl office pool" />
+            <div className="mt-4 flex gap-3">
+              <Button onClick={handleCreateRoom} variant="primary">Create room</Button>
+              <Button onClick={() => {
+                const id = prompt('Paste /room/<id> or ID');
+                if (id) router.push(`/room/${id.includes('/room/') ? id.split('/room/').pop() : id}`);
+              }} variant="neutral">Join by ID</Button>
+            </div>
           </div>
 
-          {/* Placeholder for the main app content */}
-          <div className="border border-dashed border-gray-300 p-8 rounded-lg mb-6">
-            <p className="text-gray-500">Your bet dashboard will go here.</p>
-            <p className="text-sm text-gray-400">(Create, Join, Active Bets)</p>
+          <div className="col-span-2 md:col-span-1">
+            <div className="bg-white/3 rounded-xl p-4 h-full card-border">
+              <h3 className="font-semibold">Why Wager</h3>
+              <p className="text-sm text-subtle mt-2">No money. Low friction. Create rooms, invite friends, and keep score — sign in only when you care about persistence.</p>
+              <div className="mt-4 text-sm text-subtle">Tip: share the room link directly to invite friends.</div>
+            </div>
           </div>
-
-          <button 
-            onClick={handleSignOut}
-            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Sign Out
-          </button>
         </div>
-      )}
+      </div>
     </main>
   );
 }
